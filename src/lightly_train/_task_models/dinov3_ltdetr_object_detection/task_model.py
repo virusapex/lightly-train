@@ -941,12 +941,13 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self,
         out: PathLike,
         *,
-        precision: Literal["auto", "fp32", "fp16"] = "auto",
+        precision: Literal["auto", "fp32", "fp16", "int8"] = "auto",
         onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
         min_batchsize: int = 1,
         verbose: bool = False,
+        int8_calibrator: Any | None = None,
     ) -> None:
         """Build a TensorRT engine from an ONNX model.
 
@@ -968,7 +969,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 Path where the TensorRT engine will be saved.
             precision:
                 Precision for ONNX export and TensorRT engine building. Either
-                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
+                "auto", "fp32", "fp16", or "int8". "auto" uses the model's current precision.
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -982,6 +983,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 Minimum supported batch size.
             verbose:
                 Enable verbose TensorRT logging.
+            int8_calibrator:
+                TensorRT INT8 calibrator. Required if precision is "int8".
 
         Raises:
             FileNotFoundError: If the ONNX file does not exist.
@@ -1003,4 +1006,5 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             # contains NaN.
             fp32_attention_scores=True,
             verbose=verbose,
+            int8_calibrator=int8_calibrator,
         )

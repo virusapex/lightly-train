@@ -27,7 +27,7 @@ def export_tensorrt(
     *,
     export_onnx_fn: Callable[..., None],
     out: PathLike,
-    precision: Literal["auto", "fp32", "fp16"],
+    precision: Literal["auto", "fp32", "fp16", "int8"],
     model_dtype: torch.dtype,
     onnx_args: dict[str, Any] | None = None,
     max_batchsize: int = 1,
@@ -37,6 +37,7 @@ def export_tensorrt(
     verbose: bool = False,
     debug: bool = False,
     update_network_fn: Callable[[trt.INetworkDefinition], None] | None = None,
+    int8_calibrator: Any | None = None,
 ) -> None:
     """Build a TensorRT engine from an ONNX model.
 
@@ -86,6 +87,8 @@ def export_tensorrt(
             Optional function that takes the TensorRT network definition
             as input and can be used to modify the network before building
             the engine.
+        int8_calibrator:
+            TensorRT INT8 calibrator. Required if precision is "int8".
 
     Raises:
         FileNotFoundError: If the ONNX file does not exist.
@@ -166,7 +169,7 @@ def export_tensorrt(
     logger.info(f"Detected input shape: (N, {C}, {H}, {W})")
 
     config = builder.create_builder_config()
-    config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1 << 30)  # 1GB
+    config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 4 << 30)  # 4GB
 
     # Avoid TF32 in mixed precision paths (can affect stability)
     if hasattr(trt.BuilderFlag, "TF32"):
@@ -186,6 +189,22 @@ def export_tensorrt(
             logger.info("FP16 optimization enabled.")
         else:
             logger.warning("FP16 not supported on this platform. Proceeding with FP32.")
+
+    if precision == "int8":
+        if not builder.platform_has_fast_int8:
+            logger.warning("INT8 not supported on this platform. Proceeding with FP32.")
+        else:
+            config.set_flag(trt.BuilderFlag.INT8)
+            # Use FP16 as well if supported (usually good for INT8 performance/compatibility)
+            if builder.platform_has_fast_fp16:
+                 config.set_flag(trt.BuilderFlag.FP16)
+            
+            if int8_calibrator is not None:
+                config.int8_calibrator = int8_calibrator
+                logger.info("INT8 optimization enabled with calibration.")
+            else:
+                 logger.warning("INT8 requested but no calibrator provided. This might fail or produce suboptimal results.")
+
 
     if debug:
         config.set_flag(trt.BuilderFlag.DEBUG)
