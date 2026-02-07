@@ -7,10 +7,10 @@
 #
 from __future__ import annotations
 
+import math
 from typing import Any, ClassVar, Literal
 
 import torch
-from lightly.models.utils import get_weight_decay_parameters
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
 from torch import Tensor
@@ -23,6 +23,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
+from lightly_train._optim import optimizer_helpers
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model import (
     DINOv2LinearSemanticSegmentation,
@@ -225,8 +226,12 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
 
         return TaskStepResult(loss=loss, log_dict=log_dict)
 
-    def get_optimizer(self, total_steps: int) -> tuple[Optimizer, LRScheduler]:
-        params_wd, params_no_wd = get_weight_decay_parameters([self])
+    def get_optimizer(
+        self,
+        total_steps: int,
+        global_batch_size: int,
+    ) -> tuple[Optimizer, LRScheduler]:
+        params_wd, params_no_wd = optimizer_helpers.get_weight_decay_parameters([self])
         params_wd = [p for p in params_wd if p.requires_grad]
         params_no_wd = [p for p in params_no_wd if p.requires_grad]
         params: list[dict[str, Any]] = [
@@ -237,9 +242,12 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
                 "weight_decay": 0.0,
             },
         ]
+        lr = self.model_args.lr * math.sqrt(
+            global_batch_size / self.model_args.default_batch_size
+        )
         optimizer = AdamW(
             params=params,
-            lr=self.model_args.lr,
+            lr=lr,
             weight_decay=self.model_args.weight_decay,
         )
         scheduler = CosineWarmupScheduler(
