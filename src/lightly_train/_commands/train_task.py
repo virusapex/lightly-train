@@ -972,6 +972,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 fabric.log_dict(train_log_dict, step=step)
                 helpers.reset_metrics(train_result.log_dict)
 
+            # Delete train_result to free the loss tensor and graph to avoid AccumulateGrad mismatch.
+            del train_result
+
             if config.save_checkpoint_args.save_last and (
                 is_save_ckpt_step or is_last_step
             ):

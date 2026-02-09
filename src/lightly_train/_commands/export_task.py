@@ -134,10 +134,30 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     task_model = task_model_helpers.load_model(model=checkpoint_path)
     task_model.eval()
 
+    if hasattr(task_model, "deploy"):
+        task_model.deploy()
+
     height = config.height
     width = config.width
     # TODO we might also use task_model.backbone.in_chans
     num_channels = len(task_model.image_normalize["mean"])  # type: ignore[index]
+
+    if hasattr(task_model, "export_onnx"):
+        if config.format != "onnx":
+            raise ValueError(
+                f"Unsupported format: {config.format}. Supported formats: 'onnx'."
+            )
+
+        # Use task-specific export implementation
+        task_model.export_onnx(
+            out=out_path,
+            precision=config.precision.value,
+            simplify=config.simplify,
+            verify=config.verify,
+            format_args=config.format_args,
+            num_channels=num_channels,
+        )
+        return
 
     if height is None:
         height = cast(int, task_model.image_size[0])  # type: ignore
