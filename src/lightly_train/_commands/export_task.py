@@ -149,9 +149,13 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             )
 
         # Use task-specific export implementation
+        precision_mapping = {"32-true": "fp32", "16-true": "fp16"}
+        # Fallback to "auto" if not found, usually precision value in config is from ONNXPrecision enum
+        precision_str = precision_mapping.get(config.precision.value, "auto")
+
         task_model.export_onnx(
             out=out_path,
-            precision=config.precision.value,
+            precision=precision_str,
             simplify=config.simplify,
             verify=config.verify,
             format_args=config.format_args,
